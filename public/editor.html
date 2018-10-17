@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Avian</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            font-size: 18px;
+            font-family: -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            "Roboto",
+            "Helvetica Neue", Arial, sans-serif,
+            "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        }
+
+        header, footer {
+            width: 100%;
+            flex: 0 1 1em;
+            background: #eeeeee;
+        }
+
+        body {
+            display: flex;
+            flex-flow: column;
+        }
+
+        #editor {
+            width: 100%;
+            flex: 1 1 auto;
+            box-sizing: border-box;
+            border: 1px solid black;
+            border-left: 0;
+            border-right: 0;
+            margin: 0;
+            padding: 1em;
+            resize: none;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+<header>
+</header>
+<noscript>
+    This editor requires JavaScript to work. Please enable it in your browser.
+</noscript>
+<textarea name=x id="editor" title="Editor">Waiting for connection...</textarea>
+<footer>
+    Status: unknown
+</footer>
+<script src="editor.js"></script>
+</body>
+</html>
