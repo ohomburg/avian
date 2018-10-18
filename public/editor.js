@@ -79,8 +79,7 @@
                     text = modifiedText;
                     return;
                 }
-            } else if (lastEvent.key === "Delete") {
-            } else if (lastEvent.key === "Backspace") {
+            } else if (lastEvent.key === "Backspace" || lastEvent.key === "Delete") {
                 let modifiedText = text.substr(0, cursor) + text.substr(cursor + 1);
                 if (modifiedText === editor.value) {
                     let deleted = text.substr(cursor, 1);
@@ -90,7 +89,7 @@
                 }
             }
         }
-        // slow path
+        // slow path, takes quadratic time w.r.t. diff range
         let diff = LCS(text, editor.value);
         for (const [t, idx, s] of diff) {
             if (t === INSERT) sendInsert(idx, s);
