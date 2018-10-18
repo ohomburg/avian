@@ -9,6 +9,8 @@ pub struct PieceTable {
     buffer: String,
     /// Pieces of the actual edit content. Pairs of (offset, length).
     /// Invariant: This is never empty.
+    /// This is needed because valid_index(0) must always return true.
+    /// The invariant can be restored if needed via `self.check_empty()`.
     pieces: Vec<(usize, usize)>,
 }
 
@@ -125,6 +127,7 @@ impl PieceTable {
                 self.pieces[piece].0 += len;
                 self.pieces[piece].1 -= len;
             }
+            self.empty_check();
             return;
         }
 
@@ -139,12 +142,20 @@ impl PieceTable {
         self.pieces[piece].1 -= overhead;
         if overlap {
             self.delete(pos, len - overhead);
+            self.empty_check();
         } else {
             let after_piece = (
                 self.pieces[piece].0 + self.pieces[piece].1 + len,
                 overhead - len,
             );
             self.pieces.insert(piece + 1, after_piece);
+        }
+    }
+
+    /// Checks that self.pieces is not empty. If it is empty, adds a (0, 0) piece.
+    fn empty_check(&mut self) {
+        if self.pieces.is_empty() {
+            self.pieces.push((0, 0));
         }
     }
 }
@@ -201,5 +212,20 @@ mod tests {
         // delete entire string, except for "fo" and "g"
         pt.delete(2, 19);
         assert_eq!("fog", pt.to_string());
+    }
+
+    #[test]
+    fn pt_valid_index() {
+        assert!(PieceTable::new().valid_index(0));
+        let pt = PieceTable::from("Hello!");
+        for i in 0..=("Hello!".len()) {
+            assert!(pt.valid_index(i));
+        }
+        assert!(!pt.valid_index(7));
+        let pt = PieceTable::from("ä");
+        assert_eq!("ä".len(), 2);
+        assert!(pt.valid_index(0));
+        assert!(pt.valid_index(2));
+        assert!(!pt.valid_index(1));
     }
 }

@@ -38,8 +38,20 @@ impl Editor {
     pub fn edit(&self, Edit { pos, base, action }: Edit) {
         let mut inner = self.0.borrow_mut();
         match action {
-            EditAction::Insert(content) => inner.0.insert(pos, content),
-            EditAction::Delete(len) => inner.0.delete(pos, len),
+            EditAction::Insert(content) => {
+                if inner.0.valid_index(pos) {
+                    inner.0.insert(pos, content);
+                } else {
+                    println!("Invalid insert({}, _)", pos);
+                }
+            }
+            EditAction::Delete(len) => {
+                if len > 0 && inner.0.valid_index(pos) && inner.0.valid_index(pos + len) {
+                    inner.0.delete(pos, len)
+                } else {
+                    println!("Invalid delete({}, {})", pos, len);
+                }
+            }
         }
         println!("After edit: {}", inner.0);
     }
