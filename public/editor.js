@@ -83,7 +83,8 @@
             } else if (lastEvent.key === "Backspace") {
                 let modifiedText = text.substr(0, cursor) + text.substr(cursor + 1);
                 if (modifiedText === editor.value) {
-                    sendDelete(cursor, 1);
+                    let deleted = text.substr(cursor, 1);
+                    sendDelete(cursor, countUtf8Bytes(deleted));
                     text = modifiedText;
                     return;
                 }
