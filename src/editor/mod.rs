@@ -11,19 +11,18 @@ use self::pt::PieceTable;
 /// buffer. Edits with an invalid index are rejected. Each edit also has a base revision number,
 /// which is used to prevent race conditions.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Edit<'a> {
+pub struct Edit {
     pos: usize,
     base: u32,
-    #[serde(borrow)]
-    action: EditAction<'a>,
+    action: EditAction,
 }
 
 /// Represents a single editor action, regardless of place.
 /// To be used inside Edit.
 #[derive(Debug, Serialize, Deserialize)]
-pub enum EditAction<'a> {
+pub enum EditAction {
     /// Insert action with offset in bytes, inserted string
-    Insert(&'a str),
+    Insert(String),
     /// Delete action with offset and length in bytes
     Delete(usize),
 }
@@ -40,7 +39,7 @@ impl Editor {
         match action {
             EditAction::Insert(content) => {
                 if inner.0.valid_index(pos) {
-                    inner.0.insert(pos, content);
+                    inner.0.insert(pos, &content);
                 } else {
                     println!("Invalid insert({}, _)", pos);
                 }
