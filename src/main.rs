@@ -1,7 +1,7 @@
-extern crate ws;
-
+extern crate env_logger;
 extern crate serde;
 extern crate serde_json;
+extern crate ws;
 #[macro_use]
 extern crate serde_derive;
 
@@ -47,6 +47,7 @@ impl<'a> Handler for Server<'a> {
 }
 
 fn main() {
+    env_logger::init();
     let editor = Editor::new();
     listen("0.0.0.0:8080", |out| Server {
         editor: &editor,
