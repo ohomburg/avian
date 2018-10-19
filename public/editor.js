@@ -81,13 +81,28 @@
 
 	function applyEdit(edit) {
 		let unicode = toUTF8(text);
-		console.log(edit);
+		let selStart = editor.selectionStart, selEnd = editor.selectionEnd;
+		let preText = fromUTF8(unicode.substr(0, edit.pos));
 		if (edit.action.Insert !== undefined) {
-			text = fromUTF8(unicode.substr(0, edit.pos) + toUTF8(edit.action.Insert) + unicode.substr(edit.pos));
+			text = preText + fromUTF8(toUTF8(edit.action.Insert) + unicode.substr(edit.pos));
+			if (preText.length < selStart) { selStart += edit.action.Insert.length; }
+			if (preText.length < selEnd) { selEnd += edit.action.Insert.length; }
 		} else {
-			text = fromUTF8(unicode.substr(0, edit.pos) + unicode.substr(edit.pos + edit.action.Delete));
+			text = preText + fromUTF8(unicode.substr(edit.pos + edit.action.Delete));
+			if (preText.length + edit.action.Delete < selStart) {
+				selStart -= edit.action.Delete;
+			} else if (preText.length < selStart) {
+				selStart = preText.length;
+			}
+			if (preText.length + edit.action.Delete < selEnd) {
+				selEnd -= edit.action.Delete;
+			} else if (preText.length < selEnd) {
+				selEnd = preText.length;
+			}
 		}
 		editor.value = text;
+		editor.selectionStart = selStart;
+		editor.selectionEnd = senEnd;
 	}
 
     let lastEvent = null;
