@@ -10,6 +10,7 @@
     let text = "";
     let rev = 0;
     let init = false;
+	let myEdit = false;
 
     function setStatus(status, editable) {
         footer.innerText = "Status: " + status;
@@ -28,9 +29,19 @@
             [rev, text] = JSON.parse(event.data);
             editor.value = text;
             init = true;
+        } else if (myEdit) {
+			myEdit = false;
         } else {
-            console.log(event);
-        }
+			let msg = JSON.parse(event.data);
+			if (msg.success === true) {
+				myEdit = true;
+			} else if (msg.success === false) {
+				setStatus("desync", false);
+				socket.onmessage = console.log;
+			} else {
+				applyEdit(msg);
+			}
+		}
     };
 
     socket.onopen = function () {
@@ -50,6 +61,14 @@
         return new Blob([s]).size;
     }
 
+	function toUTF8(s) {
+		return unescape(encodeURIComponent(s));
+	}
+
+	function fromUTF8(s) {
+		return decodeURIComponent(escape(s));
+	}
+
     function sendInsert(text_pos, ins) {
         let pos = countUtf8Bytes(text.substr(0, text_pos));
         socket.send(JSON.stringify({pos, base: rev, action: {Insert: ins}}));
@@ -59,6 +78,17 @@
         let pos = countUtf8Bytes(text.substr(0, text_pos));
         socket.send(JSON.stringify({pos, base: rev, action: {Delete: len}}));
     }
+
+	function applyEdit(edit) {
+		let unicode = toUTF8(text);
+		console.log(edit);
+		if (edit.action.Insert !== undefined) {
+			text = fromUTF8(unicode.substr(0, edit.pos) + toUTF8(edit.action.Insert) + unicode.substr(edit.pos));
+		} else {
+			text = fromUTF8(unicode.substr(0, edit.pos) + unicode.substr(edit.pos + edit.action.Delete));
+		}
+		editor.value = text;
+	}
 
     let lastEvent = null;
 

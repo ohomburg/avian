@@ -34,25 +34,26 @@ impl Editor {
         Editor(RefCell::new((PieceTable::new(), History::new())))
     }
 
-    pub fn edit(&self, Edit { pos, base, action }: Edit) {
+    pub fn edit(&self, Edit { pos, base, action }: Edit) -> Result<(), ()> {
         let mut inner = self.0.borrow_mut();
         match action {
             EditAction::Insert(content) => {
                 if inner.0.valid_index(pos) {
                     inner.0.insert(pos, &content);
+                    Ok(())
                 } else {
-                    println!("Invalid insert({}, _)", pos);
+                    Err(())
                 }
             }
             EditAction::Delete(len) => {
                 if len > 0 && inner.0.valid_index(pos) && inner.0.valid_index(pos + len) {
-                    inner.0.delete(pos, len)
+                    inner.0.delete(pos, len);
+                    Ok(())
                 } else {
-                    println!("Invalid delete({}, {})", pos, len);
+                    Err(())
                 }
             }
         }
-        println!("After edit: {}", inner.0);
     }
 
     pub fn status(&self) -> (u32, String) {

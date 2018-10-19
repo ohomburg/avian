@@ -1,5 +1,6 @@
 extern crate env_logger;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 extern crate ws;
 #[macro_use]
@@ -28,8 +29,11 @@ impl<'a> Handler for Server<'a> {
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
         let edit: Edit = serde_json::from_str(msg.as_text()?)
             .map_err(|err| ws::Error::new(ws::ErrorKind::Custom(Box::new(err)), "invalid json"))?;
-        self.editor.edit(edit);
-        Ok(())
+        match self.editor.edit(edit) {
+            Ok(_) => self.out.send(json!({"success": true}).to_string())?,
+            Err(_) => self.out.send(json!({"success": false}).to_string())?,
+        };
+        self.out.broadcast(msg)
     }
 
     fn on_request(&mut self, req: &Request) -> ws::Result<Response> {
