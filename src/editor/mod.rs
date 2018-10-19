@@ -1,6 +1,7 @@
 //! Implementation of a distributed editor with a piece table.
 
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::VecDeque;
 
 mod pt;
@@ -94,13 +95,38 @@ impl History {
     ///   in this case, the edit must be split in two.
     /// * The edit inserts a range contained by a range deleted by another editor;
     ///   in this case, indices are adjusted to move the insert before the deletion (spatially)
-    pub fn transform(&self, edit: Edit) -> Vec<Edit> {
-        unimplemented!()
+    pub fn transform(&self, edit: Edit) -> Result<Edit, &'static str> {
+        if edit.base < self.first_rev {
+            // The client already knows about a later edit. This is just trolling.
+            return Err("old revision");
+        }
+
+        let delta = edit.base - self.first_rev;
+        let mut pos = edit.pos;
+
+        for &(old, new) in self.edits.iter().skip(delta as usize) {
+            if cmp::max(old, new) < pos {
+                // Rule 1. Adjust position.
+                pos += new - old;
+            } else if cmp::min(old, new) > pos {
+                // Rule 2. No effect.
+                continue;
+            } else {
+                // some overlap occurs.
+                // TODO Implement transform for overlapping ranges.
+                return Err("not implemented");
+            }
+        }
+
+        Ok(Edit { pos, ..edit })
     }
 
     /// Records the effects of an edit on buffer offsets.
-    pub fn record(&mut self, _edit: &Edit) {
-        unimplemented!()
+    pub fn record(&mut self, edit: &Edit) {
+        self.edits.push_back(match edit.action {
+            EditAction::Insert(ref s) => (edit.pos, edit.pos + s.len()),
+            EditAction::Delete(len) => (edit.pos + len, edit.pos),
+        });
     }
 
     /// Gets the current revision number
