@@ -20,6 +20,13 @@ struct Server<'a> {
     editor: &'a Editor,
 }
 
+impl<'a> Server<'a> {
+    fn handle_edit(&mut self, msg: &Message) -> Result<(), &'static str> {
+        let edit: Edit = serde_json::from_str(msg.as_text()?).or(Err("invalid json"))?;
+        self.editor.edit(edit).or(Err("invalid edit"))
+    }
+}
+
 impl<'a> Handler for Server<'a> {
     fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
         self.out
@@ -27,11 +34,11 @@ impl<'a> Handler for Server<'a> {
     }
 
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
-        let edit: Edit = serde_json::from_str(msg.as_text()?)
-            .map_err(|err| ws::Error::new(ws::ErrorKind::Custom(Box::new(err)), "invalid json"))?;
-        match self.editor.edit(edit) {
+        match self.handle_edit(&msg) {
             Ok(_) => self.out.send(json!({"success": true}).to_string())?,
-            Err(_) => self.out.send(json!({"success": false}).to_string())?,
+            Err(reason) => self
+                .out
+                .send(json!({"success": false, "reason": reason}).to_string())?,
         };
         self.out.broadcast(msg)
     }
