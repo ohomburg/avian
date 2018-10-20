@@ -30,13 +30,14 @@
             editor.value = text;
             init = true;
         } else if (myEdit) {
+            rev = JSON.parse(event.data).rev;
 			myEdit = false;
         } else {
 			let msg = JSON.parse(event.data);
 			if (msg.success === true) {
 				myEdit = true;
 			} else if (msg.success === false) {
-				setStatus("desync", false);
+				setStatus("desync (" + msg.reason + ")", false);
 				socket.onmessage = console.log;
 			} else {
 				applyEdit(msg);
@@ -71,12 +72,12 @@
 
     function sendInsert(text_pos, ins) {
         let pos = countUtf8Bytes(text.substr(0, text_pos));
-        socket.send(JSON.stringify({pos, base: rev, action: {Insert: ins}}));
+        socket.send(JSON.stringify({pos, rev, action: {Insert: ins}}));
     }
 
     function sendDelete(text_pos, len) {
         let pos = countUtf8Bytes(text.substr(0, text_pos));
-        socket.send(JSON.stringify({pos, base: rev, action: {Delete: len}}));
+        socket.send(JSON.stringify({pos, rev, action: {Delete: len}}));
     }
 
 	function applyEdit(edit) {
@@ -102,7 +103,8 @@
 		}
 		editor.value = text;
 		editor.selectionStart = selStart;
-		editor.selectionEnd = senEnd;
+		editor.selectionEnd = selEnd;
+		rev = edit.rev;
 	}
 
     let lastEvent = null;

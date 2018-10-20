@@ -14,7 +14,8 @@ use self::pt::PieceTable;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Edit {
     pos: usize,
-    base: u32,
+    /// Base revision when sent by the client, current revision number when sent by the server.
+    rev: u32,
     action: EditAction,
 }
 
@@ -35,26 +36,27 @@ impl Editor {
         Editor(RefCell::new((PieceTable::new(), History::new())))
     }
 
-    pub fn edit(&self, Edit { pos, base, action }: Edit) -> Result<(), ()> {
+    pub fn edit(&self, edit: Edit) -> Result<Edit, &'static str> {
         let mut inner = self.0.borrow_mut();
-        match action {
-            EditAction::Insert(content) => {
-                if inner.0.valid_index(pos) {
-                    inner.0.insert(pos, &content);
-                    Ok(())
+        let mut edit = inner.1.transform(edit)?;
+        match edit.action {
+            EditAction::Insert(ref content) => {
+                if inner.0.valid_index(edit.pos) {
+                    inner.0.insert(edit.pos, content);
                 } else {
-                    Err(())
+                    return Err("invalid index");
                 }
             }
             EditAction::Delete(len) => {
-                if len > 0 && inner.0.valid_index(pos) && inner.0.valid_index(pos + len) {
-                    inner.0.delete(pos, len);
-                    Ok(())
+                if len > 0 && inner.0.valid_index(edit.pos) && inner.0.valid_index(edit.pos + len) {
+                    inner.0.delete(edit.pos, len);
                 } else {
-                    Err(())
+                    return Err("invalid index");
                 }
             }
         }
+        inner.1.record(&mut edit);
+        Ok(edit)
     }
 
     pub fn status(&self) -> (u32, String) {
@@ -96,12 +98,15 @@ impl History {
     /// * The edit inserts a range contained by a range deleted by another editor;
     ///   in this case, indices are adjusted to move the insert before the deletion (spatially)
     pub fn transform(&self, edit: Edit) -> Result<Edit, &'static str> {
-        if edit.base < self.first_rev {
+        if edit.rev < self.first_rev {
             // The client already knows about a later edit. This is just trolling.
             return Err("old revision");
         }
+        if edit.rev > self.first_rev + self.edits.len() as u32 {
+            return Err("future revision");
+        }
 
-        let delta = edit.base - self.first_rev;
+        let delta = edit.rev - self.first_rev;
         let mut pos = edit.pos;
 
         for &(old, new) in self.edits.iter().skip(delta as usize) {
@@ -121,12 +126,14 @@ impl History {
         Ok(Edit { pos, ..edit })
     }
 
-    /// Records the effects of an edit on buffer offsets.
-    pub fn record(&mut self, edit: &Edit) {
+    /// Records the effects of an edit on buffer offsets. Changes the edit's revision to
+    /// the current revision.
+    pub fn record(&mut self, edit: &mut Edit) {
         self.edits.push_back(match edit.action {
             EditAction::Insert(ref s) => (edit.pos, edit.pos + s.len()),
             EditAction::Delete(len) => (edit.pos + len, edit.pos),
         });
+        edit.rev = self.first_rev + self.edits.len() as u32;
     }
 
     /// Gets the current revision number

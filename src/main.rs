@@ -21,10 +21,12 @@ struct Server<'a> {
 }
 
 impl<'a> Server<'a> {
-    fn handle_edit(&mut self, msg: &Message) -> Result<(), &'static str> {
+    fn handle_edit(&mut self, msg: &Message) -> Result<String, &'static str> {
         let edit: Edit = serde_json::from_str(msg.as_text().or(Err("invalid message"))?)
             .or(Err("invalid json"))?;
-        self.editor.edit(edit).or(Err("invalid edit"))
+        self.editor
+            .edit(edit)
+            .map(|e| serde_json::to_string(&e).unwrap())
     }
 }
 
@@ -35,12 +37,17 @@ impl<'a> Handler for Server<'a> {
     }
 
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
-        let json = match self.handle_edit(&msg) {
-            Ok(_) => json!({"success": true}),
-            Err(reason) => json!({"success": false,"reason": reason}),
-        };
-        self.out.send(json.to_string())?;
-        self.out.broadcast(msg)
+        match self.handle_edit(&msg) {
+            Ok(response) => {
+                let json = json!({"success": true});
+                self.out.send(json.to_string())?;
+                self.out.broadcast(response)
+            }
+            Err(reason) => {
+                let json = json!({"success": false,"reason": reason});
+                self.out.send(json.to_string())
+            }
+        }
     }
 
     fn on_request(&mut self, req: &Request) -> ws::Result<Response> {
