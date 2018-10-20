@@ -2,13 +2,12 @@
 
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 
 mod pt;
 
 use self::pt::PieceTable;
-
 
 /// One edit in the editor. Each edit happens at a position, which is an index in bytes into the
 /// buffer. Edits with an invalid index are rejected. Each edit also has a base revision number,
@@ -39,7 +38,11 @@ pub struct Editor<Id>(RefCell<(PieceTable, History, HashMap<Id, u32>)>);
 
 impl<Id: Eq + Hash> Editor<Id> {
     pub fn new() -> Self {
-        Editor(RefCell::new((PieceTable::new(), History::new(), HashMap::new())))
+        Editor(RefCell::new((
+            PieceTable::new(),
+            History::new(),
+            HashMap::new(),
+        )))
     }
 
     /// Registers an edit from a specific client.
