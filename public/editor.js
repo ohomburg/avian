@@ -10,7 +10,8 @@
     let text = "";
     let rev = 0;
     let init = false;
-	let myEdit = false;
+    let myEdit = false;
+    let queue = [];
 
     function setStatus(status, editable) {
         footer.innerText = "Status: " + status;
@@ -29,20 +30,22 @@
             [rev, text] = JSON.parse(event.data);
             editor.value = text;
             init = true;
+            queueReady();
         } else if (myEdit) {
             rev = JSON.parse(event.data).rev;
-			myEdit = false;
+            queueReady();
+            myEdit = false;
         } else {
-			let msg = JSON.parse(event.data);
-			if (msg.success === true) {
-				myEdit = true;
-			} else if (msg.success === false) {
-				setStatus("desync (" + msg.reason + ")", false);
-				socket.onmessage = console.log;
-			} else {
-				applyEdit(msg);
-			}
-		}
+            let msg = JSON.parse(event.data);
+            if (msg.success === true) {
+                myEdit = true;
+            } else if (msg.success === false) {
+                setStatus("desync (" + msg.reason + ")", false);
+                socket.onmessage = console.log;
+            } else {
+                applyEdit(msg);
+            }
+        }
     };
 
     socket.onopen = function () {
@@ -58,54 +61,95 @@
         setStatus("error", false);
     };
 
+    function transformEdit(oldI, newI, edit) {
+        // see also: editor::History::transform
+        if (Math.max(oldI, newI) < edit.pos) {
+            edit.pos += newI - oldI;
+        } else if (Math.min(oldI, newI) <= edit.pos) {
+            // TODO Transform for overlapping ranges.
+            socket.disconnect();
+            setStatus("client desync (not implemented)", false);
+        }
+    }
+
     function countUtf8Bytes(s) {
         return new Blob([s]).size;
     }
 
-	function toUTF8(s) {
-		return unescape(encodeURIComponent(s));
-	}
+    function toUTF8(s) {
+        return unescape(encodeURIComponent(s));
+    }
 
-	function fromUTF8(s) {
-		return decodeURIComponent(escape(s));
-	}
+    function fromUTF8(s) {
+        return decodeURIComponent(escape(s));
+    }
+
+    function queueSend(data) {
+        if (queue.ready) {
+            socket.send(JSON.stringify(data));
+            queue.ready = false;
+        } else {
+            queue.push(data);
+        }
+    }
+
+    function queueReady() {
+        if (queue.length) {
+            let data = queue.shift();
+            data.rev = rev;
+            socket.send(JSON.stringify(data));
+        } else {
+            queue.ready = true;
+        }
+    }
 
     function sendInsert(text_pos, ins) {
         let pos = countUtf8Bytes(text.substr(0, text_pos));
-        socket.send(JSON.stringify({pos, rev, action: {Insert: ins}}));
+        queueSend({pos, rev, action: {Insert: ins}});
     }
 
     function sendDelete(text_pos, len) {
         let pos = countUtf8Bytes(text.substr(0, text_pos));
-        socket.send(JSON.stringify({pos, rev, action: {Delete: len}}));
+        queueSend({pos, rev, action: {Delete: len}});
     }
 
-	function applyEdit(edit) {
-		let unicode = toUTF8(text);
-		let selStart = editor.selectionStart, selEnd = editor.selectionEnd;
-		let preText = fromUTF8(unicode.substr(0, edit.pos));
-		if (edit.action.Insert !== undefined) {
-			text = preText + fromUTF8(toUTF8(edit.action.Insert) + unicode.substr(edit.pos));
-			if (preText.length < selStart) { selStart += edit.action.Insert.length; }
-			if (preText.length < selEnd) { selEnd += edit.action.Insert.length; }
-		} else {
-			text = preText + fromUTF8(unicode.substr(edit.pos + edit.action.Delete));
-			if (preText.length + edit.action.Delete < selStart) {
-				selStart -= edit.action.Delete;
-			} else if (preText.length < selStart) {
-				selStart = preText.length;
-			}
-			if (preText.length + edit.action.Delete < selEnd) {
-				selEnd -= edit.action.Delete;
-			} else if (preText.length < selEnd) {
-				selEnd = preText.length;
-			}
-		}
-		editor.value = text;
-		editor.selectionStart = selStart;
-		editor.selectionEnd = selEnd;
-		rev = edit.rev;
-	}
+    function applyEdit(edit) {
+        let unicode = toUTF8(text);
+        let selStart = editor.selectionStart, selEnd = editor.selectionEnd;
+        let preText = fromUTF8(unicode.substr(0, edit.pos));
+        let oldI, newI;
+        if (edit.action.Insert !== undefined) {
+            oldI = edit.pos;
+            newI = edit.pos + countUtf8Bytes(edit.action.Insert);
+            text = preText + fromUTF8(toUTF8(edit.action.Insert) + unicode.substr(edit.pos));
+            if (preText.length < selStart) {
+                selStart += edit.action.Insert.length;
+            }
+            if (preText.length < selEnd) {
+                selEnd += edit.action.Insert.length;
+            }
+        } else {
+            oldI = edit.pos + edit.action.Delete;
+            newI = edit.pos;
+            text = preText + fromUTF8(unicode.substr(edit.pos + edit.action.Delete));
+            if (preText.length + edit.action.Delete < selStart) {
+                selStart -= edit.action.Delete;
+            } else if (preText.length < selStart) {
+                selStart = preText.length;
+            }
+            if (preText.length + edit.action.Delete < selEnd) {
+                selEnd -= edit.action.Delete;
+            } else if (preText.length < selEnd) {
+                selEnd = preText.length;
+            }
+        }
+        editor.value = text;
+        editor.selectionStart = selStart;
+        editor.selectionEnd = selEnd;
+        rev = edit.rev;
+        queue.forEach(transformEdit.bind(oldI, newI));
+        queueReady();
+    }
 
     let lastEvent = null;
 
