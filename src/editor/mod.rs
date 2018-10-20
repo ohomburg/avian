@@ -2,11 +2,13 @@
 
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
+use std::hash::Hash;
 
 mod pt;
 
 use self::pt::PieceTable;
+
 
 /// One edit in the editor. Each edit happens at a position, which is an index in bytes into the
 /// buffer. Edits with an invalid index are rejected. Each edit also has a base revision number,
@@ -29,14 +31,22 @@ pub enum EditAction {
     Delete(usize),
 }
 
-pub struct Editor(RefCell<(PieceTable, History)>);
+/// The main struct to keep track of editor status. Wraps its contents in a RefCell
+/// to allow mutation without ownership.
+/// The Id is generic for type safety and in case the id type (which is currently always u32)
+/// needs to be changed in the future, likely if the ws implementation is switched out.
+pub struct Editor<Id>(RefCell<(PieceTable, History, HashMap<Id, u32>)>);
 
-impl Editor {
+impl<Id: Eq + Hash> Editor<Id> {
     pub fn new() -> Self {
-        Editor(RefCell::new((PieceTable::new(), History::new())))
+        Editor(RefCell::new((PieceTable::new(), History::new(), HashMap::new())))
     }
 
-    pub fn edit(&self, edit: Edit) -> Result<Edit, &'static str> {
+    /// Registers an edit from a specific client.
+    /// The edit's rev number is used to determine the client's knowledge,
+    /// meaning: the client acknowledges all edits up to number *rev*.
+    pub fn edit(&self, id: Id, edit: Edit) -> Result<Edit, &'static str> {
+        self.acknowledge(id, edit.rev);
         let mut inner = self.0.borrow_mut();
         let mut edit = inner.1.transform(edit)?;
         match edit.action {
@@ -59,9 +69,33 @@ impl Editor {
         Ok(edit)
     }
 
-    pub fn status(&self) -> (u32, String) {
-        let inner = self.0.borrow();
-        (inner.1.rev(), inner.0.to_string())
+    /// Signals that a client knows about revision *rev*
+    fn acknowledge(&self, id: Id, rev: u32) {
+        let mut inner = self.0.borrow_mut();
+        inner.2.insert(id, rev);
+        let &min_rev = inner.2.values().min().unwrap();
+        inner.1.acknowledge(min_rev);
+    }
+
+    /// Signals that a client has disconnected
+    pub fn disconnect(&self, id: &Id) {
+        let mut inner = self.0.borrow_mut();
+        inner.2.remove(id);
+        let min_opt = inner.2.values().min().map(|&min| min);
+        if let Some(min_rev) = min_opt {
+            inner.1.acknowledge(min_rev);
+        } else {
+            let rev = inner.1.rev();
+            inner.1.acknowledge(rev);
+        }
+    }
+
+    /// Adds a client and returns current status
+    pub fn connect(&self, id: Id) -> (u32, String) {
+        let mut inner = self.0.borrow_mut();
+        let rev = inner.1.rev();
+        inner.2.insert(id, rev);
+        (rev, inner.0.to_string())
     }
 }
 
@@ -139,5 +173,13 @@ impl History {
     /// Gets the current revision number
     pub fn rev(&self) -> u32 {
         self.first_rev + self.edits.len() as u32
+    }
+
+    /// Removes all backlog entries up to rev
+    pub fn acknowledge(&mut self, rev: u32) {
+        for _ in self.first_rev..rev {
+            self.edits.pop_front();
+        }
+        self.first_rev = rev;
     }
 }

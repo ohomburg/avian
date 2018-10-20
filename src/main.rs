@@ -17,7 +17,7 @@ const EDITOR_JS: &str = include_str!("../public/editor.js");
 
 struct Server<'a> {
     out: Sender,
-    editor: &'a Editor,
+    editor: &'a Editor<u32>,
 }
 
 impl<'a> Server<'a> {
@@ -25,15 +25,15 @@ impl<'a> Server<'a> {
         let edit: Edit = serde_json::from_str(msg.as_text().or(Err("invalid message"))?)
             .or(Err("invalid json"))?;
         self.editor
-            .edit(edit)
+            .edit(self.out.connection_id(), edit)
             .map(|e| serde_json::to_string(&e).unwrap())
     }
 }
 
 impl<'a> Handler for Server<'a> {
     fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
-        self.out
-            .send(serde_json::to_string(&self.editor.status()).unwrap())
+        let status = self.editor.connect(self.out.connection_id());
+        self.out.send(serde_json::to_string(&status).unwrap())
     }
 
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
@@ -48,6 +48,10 @@ impl<'a> Handler for Server<'a> {
                 self.out.send(json.to_string())
             }
         }
+    }
+
+    fn on_close(&mut self, _: ws::CloseCode, _: &str) {
+        self.editor.disconnect(&self.out.connection_id());
     }
 
     fn on_request(&mut self, req: &Request) -> ws::Result<Response> {
