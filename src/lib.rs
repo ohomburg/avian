@@ -155,7 +155,7 @@ impl History {
         let mut pos = edit.pos;
 
         for &(old, new) in self.edits.iter().skip(delta as usize) {
-            if cmp::max(old, new) < pos {
+            if old < pos {
                 // Rule 1. Adjust position.
                 pos += new - old;
             } else if cmp::min(old, new) > pos {
