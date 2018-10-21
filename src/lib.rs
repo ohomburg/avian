@@ -104,6 +104,10 @@ impl<Id: Eq + Hash> Editor<Id> {
         inner.2.insert(id, rev);
         (rev, inner.0.to_string())
     }
+
+    pub fn buffer(&self) -> String {
+        self.0.borrow().0.to_string()
+    }
 }
 
 struct History {
@@ -188,5 +192,98 @@ impl History {
             self.edits.pop_front();
         }
         self.first_rev = rev;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_client() -> Result<(), &'static str> {
+        let editor = Editor::new();
+        assert_eq!(editor.connect(0u32), (0, String::new()));
+        let edit = Edit {
+            rev: 0,
+            pos: 0,
+            action: EditAction::Insert("This is a test.".to_string()),
+        };
+        assert_eq!(editor.edit(0, edit)?.rev, 1);
+        assert_eq!(editor.buffer(), "This is a test.");
+        let edit = Edit {
+            rev: 1,
+            pos: "This is a te".len(),
+            action: EditAction::Delete(1),
+        };
+        assert_eq!(editor.edit(0, edit)?.rev, 2);
+        let edit = Edit {
+            rev: 2,
+            pos: "This is a te".len(),
+            action: EditAction::Insert("x".to_string()),
+        };
+        assert_eq!(editor.edit(0, edit)?.rev, 3);
+        assert_eq!(editor.buffer(), "This is a text.");
+        let edit = Edit {
+            rev: 3,
+            pos: 0,
+            action: EditAction::Delete("This is ".len()),
+        };
+        assert_eq!(editor.edit(0, edit)?.rev, 4);
+        assert_eq!(editor.buffer(), "a text.");
+        Ok(())
+    }
+
+    #[test]
+    fn two_clients() {
+        let editor = Editor::new();
+
+        assert_eq!(editor.connect(0u32), (0, String::new()));
+        let edit = Edit {
+            rev: 0,
+            pos: 0,
+            action: EditAction::Insert("This is a test.".to_string()),
+        };
+        assert_eq!(editor.edit(0, edit).unwrap().rev, 1);
+
+        assert_eq!(editor.connect(1), (1, "This is a test.".to_string()));
+
+        let edit = Edit {
+            rev: 1,
+            pos: "This is ".len(),
+            action: EditAction::Insert("not ".to_string()),
+        };
+        assert_eq!(editor.edit(0, edit).unwrap().rev, 2);
+
+        let edit = Edit {
+            rev: 1,
+            pos: "This is a te".len(),
+            action: EditAction::Delete(1),
+        };
+        assert_eq!(editor.edit(1, edit).unwrap().rev, 3);
+
+        let edit = Edit {
+            rev: 2,
+            pos: "This is not a te".len(),
+            action: EditAction::Insert("x".to_string()),
+        };
+        assert_eq!(editor.edit(1, edit).unwrap().rev, 4);
+
+        assert_eq!(editor.buffer(), "This is not a text.");
+
+        let edit = Edit {
+            rev: 4,
+            pos: "This ".len(),
+            action: EditAction::Delete("is not a ".len()),
+        };
+        assert_eq!(editor.edit(0, edit).unwrap().rev, 5);
+
+        let edit = Edit {
+            rev: 4,
+            pos: "This is not a text.".len(),
+            action: EditAction::Insert("\nSo great!".to_string()),
+        };
+        assert_eq!(editor.edit(1, edit).unwrap().rev, 6);
+
+        assert_eq!(editor.buffer(), "This text.\nSo great!");
     }
 }
