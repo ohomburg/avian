@@ -157,7 +157,8 @@ impl History {
         for &(old, new) in self.edits.iter().skip(delta as usize) {
             if old < pos {
                 // Rule 1. Adjust position.
-                pos += new - old;
+                pos += new;
+                pos -= old;
             } else if cmp::min(old, new) > pos {
                 // Rule 2. No effect.
                 continue;
@@ -262,7 +263,7 @@ mod tests {
         assert_eq!(editor.edit(1, edit).unwrap().rev, 3);
 
         let edit = Edit {
-            rev: 2,
+            rev: 3,
             pos: "This is not a te".len(),
             action: EditAction::Insert("x".to_string()),
         };
