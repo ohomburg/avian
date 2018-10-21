@@ -1,5 +1,9 @@
 //! Implementation of a distributed editor with a piece table.
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::{HashMap, VecDeque};
@@ -12,17 +16,17 @@ use self::pt::PieceTable;
 /// One edit in the editor. Each edit happens at a position, which is an index in bytes into the
 /// buffer. Edits with an invalid index are rejected. Each edit also has a base revision number,
 /// which is used to prevent race conditions.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Edit {
-    pos: usize,
+    pub pos: usize,
     /// Base revision when sent by the client, current revision number when sent by the server.
-    rev: u32,
-    action: EditAction,
+    pub rev: u32,
+    pub action: EditAction,
 }
 
 /// Represents a single editor action, regardless of place.
 /// To be used inside Edit.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum EditAction {
     /// Insert action with offset in bytes, inserted string
     Insert(String),

@@ -1,19 +1,19 @@
+extern crate avian;
 extern crate env_logger;
 extern crate serde;
-#[macro_use]
-extern crate serde_json;
 extern crate ws;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde_json;
+#[macro_use]
+extern crate clap;
 
+use clap::{App, Arg};
 use ws::{listen, Handler, Message, Request, Response, Sender};
 
-mod editor;
+use avian::{Edit, Editor};
 
-use editor::*;
-
-const EDITOR_HTML: &str = include_str!("../public/editor.html");
-const EDITOR_JS: &str = include_str!("../public/editor.js");
+const EDITOR_HTML: &str = include_str!("../../public/editor.html");
+const EDITOR_JS: &str = include_str!("../../public/editor.js");
 
 struct Server<'a> {
     out: Sender,
@@ -70,8 +70,26 @@ impl<'a> Handler for Server<'a> {
 
 fn main() {
     env_logger::init();
+
+    // rustfmt does not like the way this clap code is formatted. Make it ignore that.
+    #[cfg_attr(rustfmt, rustfmt_skip)]
+    let matches = {
+        App::new("avian-client")
+            .version(crate_version!())
+            .arg(Arg::with_name("port")
+                .default_value("8080")
+                .long("port"))
+            .get_matches()
+    };
+
+    let port: u16 = matches
+        .value_of("port")
+        .unwrap()
+        .parse()
+        .expect("Port must be a number");
+
     let editor = Editor::new();
-    listen("0.0.0.0:8080", |out| Server {
+    listen(("0.0.0.0", port), |out| Server {
         editor: &editor,
         out,
     }).unwrap();

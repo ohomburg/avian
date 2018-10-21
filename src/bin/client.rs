@@ -1,12 +1,11 @@
+extern crate avian;
 #[macro_use]
 extern crate clap;
 extern crate serde;
-extern crate ws;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
 extern crate serde_json;
+extern crate ws;
 
+use avian::{Edit, EditAction};
 use clap::{App, AppSettings, Arg, SubCommand};
 use serde_json::Value as Json;
 
@@ -138,14 +137,6 @@ struct ActionClient {
     init_received: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum EditAction {
-    /// Insert action with offset in bytes, inserted string
-    Insert(String),
-    /// Delete action with offset and length in bytes
-    Delete(usize),
-}
-
 impl ws::Handler for ActionClient {
     fn on_message(&mut self, msg: ws::Message) -> ws::Result<()> {
         if !self.init_received {
@@ -155,9 +146,12 @@ impl ws::Handler for ActionClient {
                 println!("Rev {}", rev);
             }
             self.init_received = true;
-            let action_json = serde_json::to_value(&self.action).unwrap();
-            self.out
-                .send(json!({"pos": self.pos, "rev": rev, "action": action_json}).to_string())
+            let edit = Edit {
+                pos: self.pos,
+                rev,
+                action: self.action.clone(),
+            };
+            self.out.send(serde_json::to_string(&edit).unwrap())
         } else {
             // wait to receive success
             let json =
