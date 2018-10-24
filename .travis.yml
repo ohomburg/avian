@@ -1,21 +1,26 @@
 language: rust
 rust:
-    - stable
-    - beta
-    - nightly
+- stable
+- beta
+- nightly
 matrix:
-    allow_failures:
-        - rust: nightly
-    fast_finish: true
+  allow_failures:
+  - rust: nightly
+  fast_finish: true
 cache: cargo
 before_script:
-    - rustup component add rustfmt-preview
+- rustup component add rustfmt-preview
 script:
-    - cargo fmt --all -- --check
-    - cargo build --verbose --all
-    - cargo test --verbose --all
+- cargo fmt --all -- --check
+- cargo build --verbose --all
+- cargo test --verbose --all
+addons:
+  apt:
+    packages:
+    - libcurl4-openssl-dev
+    - libelf-dev
+    - libdw-dev
 after_success: |
-  sudo apt-get install libcurl4-openssl-dev libelf-dev libdw-dev &&
   wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
   tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build && cmake .. && make &&
   sudo make install && cd ../.. &&
